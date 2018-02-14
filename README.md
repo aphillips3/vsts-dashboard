@@ -1,6 +1,6 @@
 # vsts-dashboard
 
-## Example config.json:
+#### Example config.json:
 ```javascript
 {
 	"accountName": "codat",
