@@ -29,6 +29,11 @@ namespace VstsDashboard
 
         private void BtnRefresh_Click(object sender, EventArgs e)
         {
+            RefreshGrid();
+        }
+
+        private void RefreshGrid()
+        {
             gridReleases.Rows.Clear();
             _async.Do(_client.GetReleaseDefinitions()).Then(defs =>
             {
@@ -108,6 +113,16 @@ namespace VstsDashboard
             {
                 Process.Start((string) link.Tag);
             }
+        }
+
+        private void chkAutoRefresh_CheckedChanged(object sender, EventArgs e)
+        {
+            timerAutoUpdate.Enabled = ((CheckBox) sender).Checked;
+        }
+
+        private void timerAutoUpdate_Tick(object sender, EventArgs e)
+        {
+            RefreshGrid();
         }
     }
 }
