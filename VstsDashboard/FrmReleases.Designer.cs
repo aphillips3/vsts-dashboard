@@ -40,10 +40,16 @@
             // 
             // gridReleases
             // 
+            this.gridReleases.AllowUserToAddRows = false;
+            this.gridReleases.AllowUserToDeleteRows = false;
+            this.gridReleases.AllowUserToResizeColumns = false;
+            this.gridReleases.AllowUserToResizeRows = false;
             this.gridReleases.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.gridReleases.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.AllCells;
+            this.gridReleases.AutoSizeRowsMode = System.Windows.Forms.DataGridViewAutoSizeRowsMode.AllCells;
+            this.gridReleases.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.gridReleases.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dataGridViewCellStyle1.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle1.BackColor = System.Drawing.SystemColors.Window;
@@ -53,8 +59,11 @@
             dataGridViewCellStyle1.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
             dataGridViewCellStyle1.WrapMode = System.Windows.Forms.DataGridViewTriState.False;
             this.gridReleases.DefaultCellStyle = dataGridViewCellStyle1;
+            this.gridReleases.EditMode = System.Windows.Forms.DataGridViewEditMode.EditProgrammatically;
             this.gridReleases.Location = new System.Drawing.Point(12, 12);
             this.gridReleases.Name = "gridReleases";
+            this.gridReleases.RowHeadersVisible = false;
+            this.gridReleases.ShowEditingIcon = false;
             this.gridReleases.Size = new System.Drawing.Size(572, 579);
             this.gridReleases.TabIndex = 0;
             this.gridReleases.CellContentClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.GridReleases_CellContentClick);
