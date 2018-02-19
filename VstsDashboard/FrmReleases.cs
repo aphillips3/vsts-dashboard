@@ -124,5 +124,17 @@ namespace VstsDashboard
         {
             RefreshGrid();
         }
+
+        private void FrmReleases_DoubleClick(object sender, EventArgs e)
+        {
+            if (this.FormBorderStyle == FormBorderStyle.Sizable)
+            {
+                FormBorderStyle = FormBorderStyle.None;
+            }
+            else
+            {
+                FormBorderStyle = FormBorderStyle.Sizable;
+            }
+        }
     }
 }
