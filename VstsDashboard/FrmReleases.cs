@@ -35,11 +35,49 @@ namespace VstsDashboard
         private void RefreshGrid()
         {
             gridReleases.Rows.Clear();
+            gridPullRequests.Rows.Clear();
+
             _async.Do(_client.GetReleaseDefinitions()).Then(defs =>
             {
                 var dict = defs.ToDictionary(d => d, d => _client.GetMostRecentReleases(d.Id));
+
+                _async.Do(_client.GetPullRequests(false)).Then(PopulatePrList);
+
                 _async.Do(Task.WhenAll(dict.Values)).Then(_ => PopulateReleaseList(dict.ToDictionary(d => d.Key, d => d.Value.Result)));
             });
+        }
+
+        private void PopulatePrList(List<PullRequest> prs)
+        {
+            gridPullRequests.Rows.Clear();
+            gridPullRequests.Columns.Clear();
+
+            gridPullRequests.Columns.Add("Title", "Title");
+            gridPullRequests.Columns.Add("Creator", "Creator");
+            gridPullRequests.Columns.Add("Created On", "Created On");
+            gridPullRequests.Columns.Add("Merge", "Merge");
+            gridPullRequests.Columns.Add("Status", "Status");
+
+            foreach (var pullRequest in prs)
+            {
+                gridPullRequests.Rows.Add(PullRequestRow(pullRequest));
+            }
+        }
+
+        private static DataGridViewRow PullRequestRow(PullRequest pullRequest)
+        {
+            var row = new DataGridViewRow();
+
+            var color = pullRequest.MergeStatus == "conflict" ? Color.Red : Color.Green;
+            var foreGround = Color.White;
+            
+            row.Cells.Add(Cell(pullRequest.Title, color, foreGround));
+            row.Cells.Add(Cell(pullRequest.CreatedBy.DisplayName, color, foreGround));
+            row.Cells.Add(Cell(pullRequest.CreationDate.ToString("s"), color, foreGround));
+            row.Cells.Add(Cell(pullRequest.MergeStatus, color, foreGround));
+            row.Cells.Add(Cell(pullRequest.Status, color, foreGround));
+
+            return row;
         }
 
         private void PopulateReleaseList(Dictionary<ReleaseDefinition, ReleaseDefinitionSummary> releases)
@@ -73,12 +111,13 @@ namespace VstsDashboard
             return row;
         }
 
-        private static DataGridViewCell Cell(object value, Color? color = null)
+        private static DataGridViewCell Cell(object value, Color? color = null, Color? foreGround = null)
         {
             var cell = new DataGridViewTextBoxCell { Value = value };
             if (color.HasValue)
             {
                 cell.Style.BackColor = color.Value;
+                cell.Style.ForeColor = foreGround ?? Color.Black;
             }
             return cell;
         }
