@@ -23,8 +23,8 @@ namespace VstsDashboard
             var config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("config.json"));
             _client = new VstsClient(config);
             _async = new AsyncManager();
-            _async.AsyncWorkBegun += (x,y) => btnRefresh.Enabled = false;
-            _async.AsyncWorkComplete += (x,y) => btnRefresh.Enabled = true;
+            _async.AsyncWorkBegun += (x, y) => btnRefresh.Enabled = false;
+            _async.AsyncWorkComplete += (x, y) => btnRefresh.Enabled = true;
         }
 
         private void BtnRefresh_Click(object sender, EventArgs e)
@@ -37,13 +37,13 @@ namespace VstsDashboard
             gridReleases.Rows.Clear();
             gridPullRequests.Rows.Clear();
 
-            _async.Do(_client.GetReleaseDefinitions()).Then(defs =>
+            _async.Do(_client.GetReleaseDefinitions()).Then(clientResult =>
             {
-                var dict = defs.ToDictionary(d => d, d => _client.GetMostRecentReleases(d.Id));
+                var dict = clientResult.Defs.ToDictionary(d => d, d => _client.GetMostRecentReleases(d.Id));
 
                 _async.Do(_client.GetPullRequests(false)).Then(PopulatePrList);
-
-                _async.Do(Task.WhenAll(dict.Values)).Then(_ => PopulateReleaseList(dict.ToDictionary(d => d.Key, d => d.Value.Result)));
+                _async.Do(Task.WhenAll(dict.Values))
+                    .Then(_ => PopulateReleaseList(dict.ToDictionary(d => d.Key, d => d.Value.Result), clientResult.FailingSolutions));
             });
         }
 
@@ -70,7 +70,7 @@ namespace VstsDashboard
 
             var color = pullRequest.MergeStatus == "conflict" ? Color.Red : Color.Green;
             var foreGround = Color.White;
-            
+
             row.Cells.Add(Cell(pullRequest.Title, color, foreGround));
             row.Cells.Add(Cell(pullRequest.CreatedBy.DisplayName, color, foreGround));
             row.Cells.Add(Cell(pullRequest.CreationDate.ToString("s"), color, foreGround));
@@ -80,35 +80,64 @@ namespace VstsDashboard
             return row;
         }
 
-        private void PopulateReleaseList(Dictionary<ReleaseDefinition, ReleaseDefinitionSummary> releases)
+        private void PopulateReleaseList(Dictionary<ReleaseDefinition, ReleaseDefinitionSummary> releases,
+            IReadOnlyCollection<Tuple<string, string>> failingSolutions)
         {
             var maxEnvironments = releases.Max(r => r.Key.Environments.Count);
             gridReleases.Rows.Clear();
             gridReleases.Columns.Clear();
             gridReleases.Columns.Add("ID", "ID");
             gridReleases.Columns.Add("Name", "Name");
-            for (int i = 0; i < maxEnvironments; i++)
+            for (var i = 0; i < maxEnvironments; i++)
             {
                 gridReleases.Columns.Add($"Environment{i}", $"Environment {i}");
             }
             foreach (var releaseDefinition in releases)
             {
-                gridReleases.Rows.Add(ReleaseRow(releaseDefinition));
+                gridReleases.Rows.Add(ReleaseRow(releaseDefinition, failingSolutions));
             }
         }
 
-        private DataGridViewRow ReleaseRow(KeyValuePair<ReleaseDefinition, ReleaseDefinitionSummary> releaseDefinition)
+        private DataGridViewRow ReleaseRow(KeyValuePair<ReleaseDefinition, ReleaseDefinitionSummary> releaseDefinition,
+            IReadOnlyCollection<Tuple<string, string>> failingSolutions)
         {
             var row = new DataGridViewRow();
             row.Cells.Add(Cell(releaseDefinition.Key.Id));
             row.Cells.Add(Cell(releaseDefinition.Key.Name));
-            var mostRecentRelease = releaseDefinition.Value.Environments.Max(e => e.LastReleases.FirstOrDefault()?.Id);
+
+
             foreach (var env in releaseDefinition.Value.Environments)
             {
                 var lastReleaseId = env.LastReleases.FirstOrDefault()?.Id;
-                row.Cells.Add(ReleaseCell(lastReleaseId, lastReleaseId != mostRecentRelease ? Color.Red : Color.Green));
+                row.Cells.Add(ReleaseCell(lastReleaseId, GetColour(releaseDefinition, failingSolutions, lastReleaseId, env.Id)));
             }
             return row;
+        }
+
+        private static Color GetColour(KeyValuePair<ReleaseDefinition, ReleaseDefinitionSummary> releaseDefinition,
+            IEnumerable<Tuple<string, string>> failingSolutions,
+            int? lastReleaseId,
+            int currentEnviromentId)
+        {
+            var mostRecentRelease = releaseDefinition.Value.Environments.Max(e => e.LastReleases.FirstOrDefault()?.Id);
+            var integrationEnviromentId = releaseDefinition.Value.Environments.Min(x => x.Id);
+
+            var solutionInFailuresList = failingSolutions
+                .FirstOrDefault(f => f.Item1.ToLower().Replace(" ", "").Contains(releaseDefinition.Key.Name.ToLower().Replace(" ", "")));
+
+            if (solutionInFailuresList == null)
+            {
+                return lastReleaseId != mostRecentRelease
+                    ? Color.DarkOrange
+                    : Color.Green;
+            }
+
+            if (solutionInFailuresList.Item2 == "InProgress" && lastReleaseId == mostRecentRelease)
+            {
+                return Color.CornflowerBlue;
+            }
+
+            return currentEnviromentId == integrationEnviromentId ? Color.Red : Color.Green;
         }
 
         private static DataGridViewCell Cell(object value, Color? color = null, Color? foreGround = null)
@@ -150,13 +179,13 @@ namespace VstsDashboard
             }
             if (gridReleases[e.ColumnIndex, e.RowIndex] is DataGridViewLinkCell link)
             {
-                Process.Start((string) link.Tag);
+                Process.Start((string)link.Tag);
             }
         }
 
         private void chkAutoRefresh_CheckedChanged(object sender, EventArgs e)
         {
-            timerAutoUpdate.Enabled = ((CheckBox) sender).Checked;
+            timerAutoUpdate.Enabled = ((CheckBox)sender).Checked;
         }
 
         private void timerAutoUpdate_Tick(object sender, EventArgs e)

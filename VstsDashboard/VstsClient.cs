@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Net;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Services.Common;
-using Microsoft.VisualStudio.Services.ExternalEvent;
 using Microsoft.VisualStudio.Services.ReleaseManagement.WebApi;
 using Microsoft.VisualStudio.Services.ReleaseManagement.WebApi.Clients;
 using Microsoft.VisualStudio.Services.ReleaseManagement.WebApi.Contracts;
 using Microsoft.VisualStudio.Services.WebApi;
 using Newtonsoft.Json;
+using Microsoft.TeamFoundation.Build.WebApi;
 
 namespace VstsDashboard
 {
@@ -21,24 +21,41 @@ namespace VstsDashboard
 
         private readonly string _projectName;
         private readonly string _baseUrl;
-        private readonly ReleaseHttpClient _client;
+        private readonly ReleaseHttpClient _releaseClient;
         private readonly Config _config;
+        private readonly BuildHttpClient _buildClient;
         
         public VstsClient(Config config)
         {
             _config = config;
             _projectName = config.ProjectName;
             _baseUrl = $"https://{config.AccountName}.visualstudio.com";
-            _client = new VssConnection(new Uri(_baseUrl), new VssBasicCredential("username", config.AccessToken)).GetClient<ReleaseHttpClient>();
+            _releaseClient = new VssConnection(new Uri(_baseUrl), new VssBasicCredential("username", config.AccessToken)).GetClient<ReleaseHttpClient>();
+            _buildClient = new VssConnection(new Uri(_baseUrl), new VssBasicCredential("username", config.AccessToken)).GetClient<BuildHttpClient>();
 
             _prClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(config.AccessToken)));
         }
 
-        public async Task<List<ReleaseDefinition>> GetReleaseDefinitions() => 
-            await _client.GetReleaseDefinitionsAsync(_projectName, null, ReleaseDefinitionExpands.Environments);
+        public async Task<ReleaseResults> GetReleaseDefinitions()
+        {
+            var defs = await _releaseClient.GetReleaseDefinitionsAsync(_projectName, null, ReleaseDefinitionExpands.Environments);
+
+            var failingSolutions = (await _buildClient.GetBuildsAsync(_projectName))
+                .GroupBy(x => new
+                {
+                    x.Definition.Name,
+                    x.Status
+                })
+                .Select(x => x.FirstOrDefault(w => w.BuildNumber == x.Max(m => m.BuildNumber)))
+                .Where(x => x != null && (x.Result == BuildResult.Failed || x.Status == BuildStatus.InProgress))
+                .Select(x => new Tuple<string, string>(x.Definition.Name, x.Status.ToString()))
+                .ToList();
+
+            return new ReleaseResults {FailingSolutions = failingSolutions, Defs = defs};
+        }
 
         public async Task<ReleaseDefinitionSummary> GetMostRecentReleases(int defId) => 
-            await _client.GetReleaseDefinitionSummaryAsync(_projectName, defId, 1, false);
+            await _releaseClient.GetReleaseDefinitionSummaryAsync(_projectName, defId, 1, false);
 
         public string ReleaseUrl(int? releaseNumber) => 
             $"https://{_config.AccountName}.visualstudio.com/{_config.ProjectName}/_release?releaseId={releaseNumber}";
@@ -69,6 +86,12 @@ namespace VstsDashboard
                 }
             }
         }
+    }
+
+    public class ReleaseResults
+    {
+        public IReadOnlyCollection<Tuple<string, string>> FailingSolutions { get; set; }
+        public IReadOnlyCollection<ReleaseDefinition> Defs { get; set; }
     }
 
     public class PullRequests
